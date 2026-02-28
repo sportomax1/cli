@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Gemini CLI" />
+  <meta name="theme-color" content="#0f0f11" />
+  <title>Gemini CLI Web</title>
+
+  <!-- Marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+  <!-- Highlight.js for code blocks -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/highlight.min.js"></script>
+
+  <style>
+    /* ─── Reset & Base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f0f11;
+      --surface:   #1a1a1f;
+      --surface2:  #25252c;
+      --border:    #2e2e38;
+      --accent:    #4f8ef7;
+      --accent2:   #a78bfa;
+      --green:     #34d399;
+      --red:       #f87171;
+      --yellow:    #fbbf24;
+      --text:      #e8e8ed;
+      --text2:     #8b8b99;
+      --user-bg:   #1e2a4a;
+      --model-bg:  #1a1a1f;
+      --radius:    14px;
+      --r-sm:      8px;
+      --font:      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      --mono:      "SF Mono", "Fira Code", monospace;
+      --safe-top:  env(safe-area-inset-top, 0px);
+      --safe-bot:  env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      -webkit-text-size-adjust: 100%;
+      overscroll-behavior: none;
+    }
+
+    /* ─── Lock Screen ───────────────────────────────────────── */
+    #lock-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      gap: 20px;
+      padding: 24px;
+      z-index: 1000;
+    }
+
+    #lock-screen .logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+    }
+
+    #lock-screen h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    #lock-screen p {
+      font-size: 14px;
+      color: var(--text2);
+      text-align: center;
+    }
+
+    #lock-form {
+      width: 100%;
+      max-width: 340px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #lock-form input {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: var(--r-sm);
+      border: 1.5px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 16px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+
+    #lock-form input:focus { border-color: var(--accent); }
+
+    #lock-error {
+      font-size: 13px;
+      color: var(--red);
+      min-height: 18px;
+      text-align: center;
+    }
+
+    /* ─── App Shell ─────────────────────────────────────────── */
+    #app {
+      display: none;
+      flex-direction: column;
+      height: 100dvh;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    #app.visible { display: flex; }
+
+    /* ─── Header ────────────────────────────────────────────── */
+    #header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      padding-top: calc(12px + var(--safe-top));
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    #header-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    #header h2 {
+      font-size: 16px;
+      font-weight: 600;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #header-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .icon-btn:hover, .icon-btn.active { background: var(--accent); color: #fff; }
+
+    /* ─── Tabs ───────────────────────────────────────────────── */
+    #tabs {
+      flex-shrink: 0;
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: transparent;
+      color: var(--text2);
+      font-size: 13px;
+      font-family: var(--font);
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ─── Tab Panels ────────────────────────────────────────── */
+    .panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+    .panel.active { display: flex; }
+
+    /* ─── Chat Panel ────────────────────────────────────────── */
+    #chat-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+
+    .msg-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text2);
+      padding: 0 4px;
+    }
+
+    .msg.user .msg-label { color: var(--accent); text-align: right; }
+    .msg.model .msg-label { color: var(--accent2); }
+    .msg.error .msg-label { color: var(--red); }
+
+    .msg-bubble {
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      font-size: 15px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .msg.user .msg-bubble {
+      background: var(--user-bg);
+      border: 1px solid #2a3a6a;
+      margin-left: 32px;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.model .msg-bubble {
+      background: var(--model-bg);
+      border: 1px solid var(--border);
+      margin-right: 32px;
+      border-bottom-left-radius: 4px;
+    }
+
+    .msg.error .msg-bubble {
+      background: #2d1515;
+      border: 1px solid #5a2020;
+      color: var(--red);
+    }
+
+    .msg.model .msg-bubble p { margin-bottom: 10px; }
+    .msg.model .msg-bubble p:last-child { margin-bottom: 0; }
+    .msg.model .msg-bubble h1,
+    .msg.model .msg-bubble h2,
+    .msg.model .msg-bubble h3 { margin: 12px 0 6px; font-size: 1em; font-weight: 600; }
+    .msg.model .msg-bubble ul,
+    .msg.model .msg-bubble ol { padding-left: 18px; margin-bottom: 10px; }
+    .msg.model .msg-bubble li { margin-bottom: 4px; }
+    .msg.model .msg-bubble a { color: var(--accent); }
+
+    .msg.model .msg-bubble pre {
+      background: #12121a;
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: 12px;
+      overflow-x: auto;
+      margin: 8px 0;
+      font-size: 13px;
+    }
+
+    .msg.model .msg-bubble code:not(pre code) {
+      background: #1e1e2e;
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-size: 13px;
+      font-family: var(--mono);
+    }
+
+    .msg-meta {
+      font-size: 11px;
+      color: var(--text2);
+      padding: 0 4px;
+    }
+
+    .msg.user .msg-meta { text-align: right; }
+
+    /* Typing indicator */
+    .typing-bubble {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      padding: 14px;
+    }
+
+    .typing-bubble span {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text2);
+      animation: bounce 1.2s infinite;
+    }
+
+    .typing-bubble span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-bubble span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-5px); }
+    }
+
+    /* ─── Input Bar ─────────────────────────────────────────── */
+    #input-bar {
+      flex-shrink: 0;
+      display: flex;
+      gap: 8px;
+      padding: 10px 12px;
+      padding-bottom: calc(10px + var(--safe-bot));
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      align-items: flex-end;
+    }
+
+    #prompt-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      color: var(--text);
+      font-size: 15px;
+      font-family: var(--font);
+      padding: 10px 16px;
+      resize: none;
+      outline: none;
+      max-height: 140px;
+      overflow-y: auto;
+      line-height: 1.4;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+
+    #prompt-input:focus { border-color: var(--accent); }
+    #prompt-input::placeholder { color: var(--text2); }
+
+    #send-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #send-btn:hover { background: #3a7aee; }
+    #send-btn:active { transform: scale(0.92); }
+    #send-btn:disabled { background: var(--surface2); color: var(--text2); cursor: default; }
+
+    /* ─── Model Panel ───────────────────────────────────────── */
+    #model-panel {
+      overflow-y: auto;
+      padding: 16px;
+      gap: 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #model-panel h3 {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text2);
+      margin-bottom: 4px;
+    }
+
+    .model-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .model-card:hover { border-color: var(--accent); }
+    .model-card.selected { border-color: var(--accent); background: #181d2e; }
+
+    .model-card-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      margin-top: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .model-card.selected .model-card-check {
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+
+    .model-card-body { flex: 1; }
+
+    .model-card-name {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .model-card-id {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--accent2);
+      margin-bottom: 6px;
+    }
+
+    .model-card-desc {
+      font-size: 13px;
+      color: var(--text2);
+      line-height: 1.4;
+    }
+
+    .tier-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 20px;
+      margin-left: 6px;
+      vertical-align: middle;
+      background: var(--surface2);
+      color: var(--text2);
+    }
+
+    .tier-badge.pro { background: #2a1f4a; color: var(--accent2); }
+    .tier-badge.flash { background: #1a2a1f; color: var(--green); }
+
+    /* ─── Stats Panel ───────────────────────────────────────── */
+    #stats-panel {
+      overflow-y: auto;
+      padding: 16px;
+      gap: 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .stat-card h3 {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text2);
+      margin-bottom: 12px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .stat-row:last-child { border-bottom: none; }
+    .stat-label { color: var(--text2); }
+    .stat-value { font-weight: 600; font-family: var(--mono); font-size: 13px; }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .status-dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.red { background: var(--red); }
+    .status-dot.yellow { background: var(--yellow); animation: pulse 1s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ─── Session Stats Bar ─────────────────────────────────── */
+    #session-bar {
+      flex-shrink: 0;
+      display: flex;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text2);
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .sbar-item {
+      display: flex;
+      gap: 4px;
+      padding: 0 6px;
+      border-right: 1px solid var(--border);
+    }
+
+    .sbar-item:last-child { border-right: none; }
+    .sbar-val { color: var(--text); font-weight: 600; }
+
+    /* ─── Sections within panels ─── */
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text2);
+      margin-bottom: 8px;
+    }
+
+    /* ─── Buttons ───────────────────────────────────────────── */
+    .btn {
+      padding: 11px 18px;
+      border-radius: var(--r-sm);
+      border: none;
+      font-size: 14px;
+      font-family: var(--font);
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #3a7aee; }
+    .btn-primary:active { transform: scale(0.97); }
+    .btn-danger { background: #2d1515; color: var(--red); border: 1px solid #5a2020; }
+    .btn-danger:hover { background: #3d1f1f; }
+
+    /* ─── Settings (System Prompt) ──────────────────────────── */
+    #settings-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #system-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--font);
+      padding: 10px 12px;
+      resize: vertical;
+      outline: none;
+      min-height: 80px;
+      line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+
+    #system-input:focus { border-color: var(--accent); }
+    #system-input::placeholder { color: var(--text2); }
+
+    /* ─── Scrollbar ─────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ─── Toast ─────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: calc(80px + var(--safe-bot));
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-size: 13px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      white-space: nowrap;
+      z-index: 999;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ─── Responsive ────────────────────────────────────────── */
+    @media (min-width: 600px) {
+      #app { border: 1px solid var(--border); border-radius: 16px; margin: 24px auto; height: calc(100dvh - 48px); }
+      #header { border-radius: 16px 16px 0 0; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════ Lock Screen ════════════════════════════════════════ -->
+<div id="lock-screen">
+  <div class="logo">✦</div>
+  <h1>Gemini CLI Web</h1>
+  <p>Enter your access password to continue.</p>
+  <form id="lock-form">
+    <input id="pw-input" type="password" placeholder="Password" autocomplete="current-password" autofocus />
+    <div id="lock-error"></div>
+    <button type="submit" class="btn btn-primary" style="width:100%">Unlock</button>
+  </form>
+</div>
+
+<!-- ════ App Shell ══════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- Header -->
+  <div id="header">
+    <div id="header-logo">✦</div>
+    <h2>Gemini CLI <span id="header-model-badge" style="color:var(--text2); font-weight:400; font-size:13px;"></span></h2>
+    <div id="header-actions">
+      <button class="icon-btn" id="clear-btn" title="Clear chat">🗑</button>
+      <button class="icon-btn" id="lock-btn" title="Lock">🔒</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div id="tabs">
+    <button class="tab-btn active" data-tab="chat">💬 Chat</button>
+    <button class="tab-btn" data-tab="model">⚙️ Model</button>
+    <button class="tab-btn" data-tab="stats">📊 Stats</button>
+  </div>
+
+  <!-- ── Chat Panel ── -->
+  <div id="chat" class="panel active">
+    <div id="chat-log">
+      <div class="msg model" id="welcome-msg">
+        <div class="msg-label">Gemini</div>
+        <div class="msg-bubble">
+          <p>Hello! I'm ready to chat. Select a model in the <strong>Model</strong> tab, or just type below.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Session bar -->
+    <div id="session-bar">
+      <div class="sbar-item">Model <span class="sbar-val" id="sb-model">—</span></div>
+      <div class="sbar-item">Turns <span class="sbar-val" id="sb-turns">0</span></div>
+      <div class="sbar-item">Tokens <span class="sbar-val" id="sb-tokens">0</span></div>
+    </div>
+
+    <!-- Input bar -->
+    <div id="input-bar">
+      <textarea id="prompt-input" rows="1" placeholder="Ask Gemini anything…"></textarea>
+      <button id="send-btn" title="Send">▶</button>
+    </div>
+  </div>
+
+  <!-- ── Model Panel ── -->
+  <div id="model" class="panel">
+    <div id="model-panel" style="display:flex; flex-direction:column; gap:12px;">
+      <div class="section-title">Select Gemini Model</div>
+      <div id="model-list">
+        <div style="color:var(--text2); font-size:14px;">Loading models…</div>
+      </div>
+
+      <div class="section-title" style="margin-top:8px;">System Prompt</div>
+      <div id="settings-section">
+        <textarea id="system-input" placeholder="Optional system instructions (e.g. You are a helpful assistant…)"></textarea>
+        <button class="btn btn-primary" id="save-system-btn">Save System Prompt</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Stats Panel ── -->
+  <div id="stats" class="panel">
+    <div id="stats-panel" style="display:flex; flex-direction:column;">
+
+      <div class="stat-card" style="margin-bottom:12px;">
+        <h3>Session</h3>
+        <div class="stat-row">
+          <span class="stat-label">Active model</span>
+          <span class="stat-value" id="st-model">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Messages sent</span>
+          <span class="stat-value" id="st-turns">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Total tokens used</span>
+          <span class="stat-value" id="st-tokens">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Session started</span>
+          <span class="stat-value" id="st-started">—</span>
+        </div>
+      </div>
+
+      <div class="stat-card" style="margin-bottom:12px;">
+        <h3>API Connectivity</h3>
+        <div class="stat-row">
+          <span class="stat-label">Status</span>
+          <span class="stat-value" id="st-status">
+            <span class="status-dot yellow"></span>Not checked
+          </span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Last ping response</span>
+          <span class="stat-value" id="st-ping">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Checked at</span>
+          <span class="stat-value" id="st-checked">—</span>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="refresh-stats-btn">🔄 Check Connectivity</button>
+
+      <div style="margin-top:12px;">
+        <button class="btn btn-danger" id="clear-history-btn" style="width:100%">Clear Chat History</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  Config & State
+// ═══════════════════════════════════════════════════════════
+const API_BASE = ""; // same origin; override if different domain
+
+const state = {
+  password: "",
+  model: "gemini-2.0-flash",
+  systemPrompt: "",
+  history: [],      // [{role:"user"|"assistant", content:"..."}]
+  sessionTokens: 0,
+  sessionTurns: 0,
+  sessionStart: null,
+};
+
+// ═══════════════════════════════════════════════════════════
+//  Helpers
+// ═══════════════════════════════════════════════════════════
+function $(id) { return document.getElementById(id); }
+
+function showToast(msg, duration = 2200) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), duration);
+}
+
+function autoResize(ta) {
+  ta.style.height = "auto";
+  ta.style.height = Math.min(ta.scrollHeight, 140) + "px";
+}
+
+function scrollToBottom() {
+  const log = $("chat-log");
+  log.scrollTop = log.scrollHeight;
+}
+
+function updateSessionBar() {
+  $("sb-model").textContent  = state.model;
+  $("sb-turns").textContent  = state.sessionTurns;
+  $("sb-tokens").textContent = state.sessionTokens;
+  $("header-model-badge").textContent = state.model;
+  $("st-model").textContent  = state.model;
+  $("st-turns").textContent  = state.sessionTurns;
+  $("st-tokens").textContent = state.sessionTokens;
+  if (state.sessionStart) {
+    $("st-started").textContent = state.sessionStart.toLocaleTimeString();
+  }
+}
+
+async function apiFetch(path, method = "GET", body = null) {
+  const opts = {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Password": state.password,
+    },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API_BASE + path, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Lock / Auth
+// ═══════════════════════════════════════════════════════════
+$("lock-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const pw = $("pw-input").value.trim();
+  if (!pw) return;
+  $("lock-error").textContent = "";
+
+  // Quick validation: hit /api/stats with password
+  try {
+    state.password = pw;
+    await apiFetch("/api/stats");
+    // Success
+    sessionStorage.setItem("gcw_pw", pw);
+    unlockApp();
+  } catch (err) {
+    state.password = "";
+    $("lock-error").textContent = err.message.includes("Unauthorized")
+      ? "Incorrect password."
+      : "Error: " + err.message;
+    $("pw-input").focus();
+  }
+});
+
+$("lock-btn").addEventListener("click", () => {
+  sessionStorage.removeItem("gcw_pw");
+  location.reload();
+});
+
+function unlockApp() {
+  $("lock-screen").style.display = "none";
+  const app = $("app");
+  app.classList.add("visible");
+  state.sessionStart = new Date();
+  updateSessionBar();
+  loadModels();
+  // Restore system prompt
+  const saved = localStorage.getItem("gcw_system");
+  if (saved) {
+    state.systemPrompt = saved;
+    $("system-input").value = saved;
+  }
+}
+
+// Auto-restore password from sessionStorage
+window.addEventListener("load", () => {
+  const saved = sessionStorage.getItem("gcw_pw");
+  if (saved) {
+    $("pw-input").value = saved;
+    $("lock-form").dispatchEvent(new Event("submit"));
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+//  Tabs
+// ═══════════════════════════════════════════════════════════
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    $(btn.dataset.tab).classList.add("active");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  Chat
+// ═══════════════════════════════════════════════════════════
+const promptInput = $("prompt-input");
+const sendBtn     = $("send-btn");
+
+promptInput.addEventListener("input", () => autoResize(promptInput));
+
+promptInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+sendBtn.addEventListener("click", sendMessage);
+
+function appendMessage(role, content, meta = null) {
+  // Remove welcome message if present
+  const welcome = $("welcome-msg");
+  if (welcome) welcome.remove();
+
+  const log = $("chat-log");
+  const div = document.createElement("div");
+  div.className = `msg ${role}`;
+
+  const label = document.createElement("div");
+  label.className = "msg-label";
+  label.textContent = role === "user" ? "You" : role === "error" ? "Error" : "Gemini";
+  div.appendChild(label);
+
+  const bubble = document.createElement("div");
+  bubble.className = "msg-bubble";
+
+  if (role === "model") {
+    bubble.innerHTML = marked.parse(content);
+    bubble.querySelectorAll("pre code").forEach(block => {
+      hljs.highlightElement(block);
+    });
+  } else {
+    bubble.textContent = content;
+  }
+
+  div.appendChild(bubble);
+
+  if (meta) {
+    const metaEl = document.createElement("div");
+    metaEl.className = "msg-meta";
+    metaEl.textContent = meta;
+    div.appendChild(metaEl);
+  }
+
+  log.appendChild(div);
+  scrollToBottom();
+  return div;
+}
+
+function addTypingIndicator() {
+  const log  = $("chat-log");
+  const div  = document.createElement("div");
+  div.className = "msg model";
+  div.id = "typing-indicator";
+
+  const label = document.createElement("div");
+  label.className = "msg-label";
+  label.textContent = "Gemini";
+  div.appendChild(label);
+
+  const bubble = document.createElement("div");
+  bubble.className = "msg-bubble";
+  bubble.innerHTML = `<div class="typing-bubble"><span></span><span></span><span></span></div>`;
+  div.appendChild(bubble);
+
+  log.appendChild(div);
+  scrollToBottom();
+}
+
+function removeTypingIndicator() {
+  const el = $("typing-indicator");
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  const text = promptInput.value.trim();
+  if (!text || sendBtn.disabled) return;
+
+  promptInput.value = "";
+  autoResize(promptInput);
+  sendBtn.disabled = true;
+
+  appendMessage("user", text);
+  addTypingIndicator();
+
+  // Add to history
+  state.history.push({ role: "user", content: text });
+
+  try {
+    const data = await apiFetch("/api/chat", "POST", {
+      prompt: text,
+      model: state.model,
+      history: state.history.slice(0, -1), // history without current msg
+      system: state.systemPrompt,
+    });
+
+    removeTypingIndicator();
+
+    const tokens = data.usage?.totalTokens;
+    const meta   = tokens ? `${tokens} tokens · ${data.model}` : data.model;
+
+    appendMessage("model", data.text, meta);
+
+    // Update history with assistant reply
+    state.history.push({ role: "assistant", content: data.text });
+
+    state.sessionTurns++;
+    if (tokens) state.sessionTokens += tokens;
+    updateSessionBar();
+
+    // Trim history to last 20 turns (40 messages)
+    if (state.history.length > 40) {
+      state.history = state.history.slice(-40);
+    }
+
+  } catch (err) {
+    removeTypingIndicator();
+    appendMessage("error", err.message);
+    state.history.pop(); // remove the user message that failed
+  }
+
+  sendBtn.disabled = false;
+  promptInput.focus();
+}
+
+$("clear-btn").addEventListener("click", clearChat);
+$("clear-history-btn").addEventListener("click", clearChat);
+
+function clearChat() {
+  const log = $("chat-log");
+  log.innerHTML = `
+    <div class="msg model" id="welcome-msg">
+      <div class="msg-label">Gemini</div>
+      <div class="msg-bubble"><p>Chat cleared. Ready for a new conversation.</p></div>
+    </div>`;
+  state.history = [];
+  state.sessionTurns = 0;
+  state.sessionTokens = 0;
+  state.sessionStart = new Date();
+  updateSessionBar();
+  showToast("Chat cleared");
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Model Panel
+// ═══════════════════════════════════════════════════════════
+async function loadModels() {
+  try {
+    const data = await apiFetch("/api/model");
+    state.model = data.current || state.model;
+    renderModelList(data.models, data.current);
+    updateSessionBar();
+  } catch (err) {
+    $("model-list").innerHTML = `<div style="color:var(--red); font-size:13px;">Failed to load models: ${err.message}</div>`;
+  }
+}
+
+function renderModelList(models, current) {
+  const container = $("model-list");
+  container.innerHTML = "";
+  models.forEach(m => {
+    const isSelected = m.id === (state.model || current);
+    const card = document.createElement("div");
+    card.className = "model-card" + (isSelected ? " selected" : "");
+    card.dataset.id = m.id;
+    card.innerHTML = `
+      <div class="model-card-check">${isSelected ? "✓" : ""}</div>
+      <div class="model-card-body">
+        <div class="model-card-name">${m.name}<span class="tier-badge ${m.tier}">${m.tier}</span></div>
+        <div class="model-card-id">${m.id}</div>
+        <div class="model-card-desc">${m.description}</div>
+      </div>`;
+    card.addEventListener("click", () => selectModel(m.id, models));
+    container.appendChild(card);
+  });
+}
+
+function selectModel(id, models) {
+  state.model = id;
+  renderModelList(models, id);
+  updateSessionBar();
+  showToast(`Model: ${id}`);
+}
+
+// System Prompt
+$("save-system-btn").addEventListener("click", () => {
+  const val = $("system-input").value.trim();
+  state.systemPrompt = val;
+  localStorage.setItem("gcw_system", val);
+  showToast(val ? "System prompt saved" : "System prompt cleared");
+});
+
+// ═══════════════════════════════════════════════════════════
+//  Stats Panel
+// ═══════════════════════════════════════════════════════════
+$("refresh-stats-btn").addEventListener("click", fetchStats);
+
+async function fetchStats() {
+  const statusEl  = $("st-status");
+  const pingEl    = $("st-ping");
+  const checkedEl = $("st-checked");
+
+  statusEl.innerHTML = `<span class="status-dot yellow"></span>Checking…`;
+  pingEl.textContent    = "—";
+  checkedEl.textContent = "—";
+
+  try {
+    const data = await apiFetch("/api/stats");
+    statusEl.innerHTML  = `<span class="status-dot green"></span>Connected`;
+    pingEl.textContent    = data.connectivity?.ping || "—";
+    checkedEl.textContent = new Date(data.timestamp).toLocaleTimeString();
+    // Sync model if different
+    if (data.configured?.model && !state.model) {
+      state.model = data.configured.model;
+      updateSessionBar();
+    }
+    showToast("API connected ✓");
+  } catch (err) {
+    statusEl.innerHTML  = `<span class="status-dot red"></span>Error`;
+    pingEl.textContent    = err.message;
+    checkedEl.textContent = new Date().toLocaleTimeString();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Init marked
+// ═══════════════════════════════════════════════════════════
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
+</script>
+</body>
+</html>

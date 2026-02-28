@@ -1,0 +1,19 @@
+{
+  "name": "gemini-cli-web",
+  "version": "1.0.0",
+  "description": "Mobile-friendly web interface for Google Gemini CLI via Vercel serverless",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0"
+  },
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  }
+}
